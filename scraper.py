@@ -197,3 +197,69 @@ def print_summary(results: list[dict]) -> None:
     total = len(results)
     succeeded = sum(1 for r in results if r["success"])
     print(f"\nTotal: {total} | Success: {succeeded} | Failed: {total - succeeded}")
+import argparse
+import time
+
+DELAY_BETWEEN_REQUESTS = 1  # seconds
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Scrape article text from web URLs."
+    )
+    parser.add_argument(
+        "--category", required=True, help="Output subfolder name (e.g., seo, tech)"
+    )
+    parser.add_argument(
+        "--file", help="Path to a file with one URL per line"
+    )
+    parser.add_argument(
+        "urls", nargs="*", help="URLs to scrape"
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Main entry point."""
+    args = parse_args(argv)
+
+    # Collect URLs
+    urls = list(args.urls)
+    if args.file:
+        with open(args.file) as f:
+            urls.extend(line.strip() for line in f if line.strip())
+
+    if not urls:
+        print("Error: No URLs provided.")
+        return
+
+    # Validate URLs
+    valid_urls = []
+    for url in urls:
+        if validate_url(url):
+            valid_urls.append(url)
+        else:
+            print(f"Skipping invalid URL: {url}")
+
+    if not valid_urls:
+        print("Error: No valid URLs to process.")
+        return
+
+    # Process each URL
+    results = []
+    for i, url in enumerate(valid_urls):
+        print(f"[{i + 1}/{len(valid_urls)}] Scraping: {url}")
+        result = scrape_url(url)
+        filepath = save_result(result, category=args.category)
+        result["filepath"] = filepath
+        results.append(result)
+
+        if i < len(valid_urls) - 1:
+            time.sleep(DELAY_BETWEEN_REQUESTS)
+
+    print_summary(results)
+
+
+if __name__ == "__main__":
+    main()

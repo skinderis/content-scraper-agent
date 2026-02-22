@@ -211,3 +211,24 @@ def test_print_summary(capsys):
     assert "FAILED" in captured.out
     assert "trafilatura" in captured.out
     assert "403" in captured.out
+from scraper import parse_args
+
+
+def test_parse_args_urls():
+    args = parse_args(["--category", "seo", "https://a.com", "https://b.com"])
+    assert args.category == "seo"
+    assert args.urls == ["https://a.com", "https://b.com"]
+
+
+def test_parse_args_file(tmp_path):
+    url_file = tmp_path / "urls.txt"
+    url_file.write_text("https://a.com\nhttps://b.com\n")
+    args = parse_args(["--category", "tech", "--file", str(url_file)])
+    assert args.category == "tech"
+    assert args.file == str(url_file)
+
+
+def test_parse_args_category_required():
+    import pytest
+    with pytest.raises(SystemExit):
+        parse_args(["https://example.com"])
