@@ -232,3 +232,23 @@ def test_parse_args_category_required():
     import pytest
     with pytest.raises(SystemExit):
         parse_args(["https://example.com"])
+
+
+def test_main_end_to_end(tmp_path, capsys):
+    """Integration test: run main with a mocked URL."""
+    sample_html = "<html><body><article><p>" + "This is real article content. " * 20 + "</p></article></body></html>"
+
+    with patch("scraper.fetch_html", return_value=(sample_html, None)):
+        from scraper import main
+        main(["--category", "test", "https://example.com/test-article"])
+
+    captured = capsys.readouterr()
+    assert "SUCCESS" in captured.out
+    assert "example-com-test-article" in captured.out
+
+    # Verify file was created
+    assert os.path.exists("output/test/example-com-test-article.txt")
+
+    # Clean up
+    import shutil
+    shutil.rmtree("output/test", ignore_errors=True)
