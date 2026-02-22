@@ -1,0 +1,6 @@
+trafilatura
+newspaper4k
+beautifulsoup4
+lxml
+requests
+playwright
