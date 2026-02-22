@@ -88,3 +88,42 @@ def fetch_html_with_playwright(url: str) -> tuple[str | None, str | None]:
             return html, None
     except Exception as e:
         return None, f"Playwright error: {e}"
+
+import trafilatura
+from newspaper import Article
+
+
+def extract_with_trafilatura(html: str) -> str | None:
+    """Extract article text using trafilatura."""
+    try:
+        text = trafilatura.extract(html)
+        return text if text and len(text.strip()) >= 50 else None
+    except Exception:
+        return None
+
+
+def extract_with_newspaper(html: str, url: str) -> str | None:
+    """Extract article text using newspaper4k."""
+    try:
+        article = Article(url)
+        article.set_html(html)
+        article.parse()
+        text = article.text
+        return text if text and len(text.strip()) >= 50 else None
+    except Exception:
+        return None
+
+
+def extract_with_beautifulsoup(html: str) -> str | None:
+    """Extract article text using BeautifulSoup as last resort."""
+    try:
+        soup = BeautifulSoup(html, "lxml")
+        # Remove unwanted elements
+        for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
+            tag.decompose()
+        text = soup.get_text(separator="\n", strip=True)
+        # Collapse multiple blank lines
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text if text and len(text.strip()) >= 10 else None
+    except Exception:
+        return None

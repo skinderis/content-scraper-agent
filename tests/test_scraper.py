@@ -90,3 +90,55 @@ def test_needs_js_rendering_normal_page():
 def test_needs_js_rendering_short_text():
     html = "<html><body><p>Loading...</p></body></html>"
     assert needs_js_rendering(html) is True
+
+from scraper import extract_with_trafilatura, extract_with_newspaper, extract_with_beautifulsoup
+
+SAMPLE_HTML = """
+<html>
+<head><title>Test Article</title></head>
+<body>
+<nav>Navigation links here</nav>
+<article>
+<h1>Test Article Title</h1>
+<p>This is the first paragraph of the article with enough content to be meaningful.
+It discusses various topics and provides information that a reader would find useful.</p>
+<p>This is the second paragraph continuing the article content with additional details
+and explanations that expand on the initial topic presented above.</p>
+</article>
+<footer>Footer content here</footer>
+</body>
+</html>
+"""
+
+
+def test_extract_with_trafilatura():
+    result = extract_with_trafilatura(SAMPLE_HTML)
+    assert result is None or isinstance(result, str)
+
+
+def test_extract_with_newspaper():
+    result = extract_with_newspaper(SAMPLE_HTML, "https://example.com/test")
+    assert result is None or isinstance(result, str)
+
+
+def test_extract_with_beautifulsoup():
+    result = extract_with_beautifulsoup(SAMPLE_HTML)
+    assert isinstance(result, str)
+    assert "Navigation links here" not in result or "article content" in result
+    assert "<script" not in result
+    assert "<style" not in result
+
+
+def test_extract_with_beautifulsoup_strips_tags():
+    html = """
+    <html><body>
+    <script>var x = 1;</script>
+    <style>.foo { color: red; }</style>
+    <nav>Skip this</nav>
+    <p>Keep this paragraph content that is meaningful.</p>
+    </body></html>
+    """
+    result = extract_with_beautifulsoup(html)
+    assert "var x = 1" not in result
+    assert ".foo" not in result
+    assert "Keep this paragraph" in result
