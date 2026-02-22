@@ -32,3 +32,39 @@ def test_url_to_slug_truncates_long_urls():
 def test_url_to_slug_no_trailing_hyphens():
     slug = url_to_slug("https://example.com/path/")
     assert not slug.endswith("-")
+
+from unittest.mock import patch, Mock
+from scraper import fetch_html
+
+def test_fetch_html_success():
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.text = "<html><body>Hello world</body></html>"
+    mock_response.raise_for_status = Mock()
+
+    with patch("scraper.requests.get", return_value=mock_response) as mock_get:
+        html, error = fetch_html("https://example.com")
+        assert html == "<html><body>Hello world</body></html>"
+        assert error is None
+        call_kwargs = mock_get.call_args
+        assert "User-Agent" in call_kwargs[1]["headers"]
+
+
+def test_fetch_html_timeout():
+    with patch("scraper.requests.get", side_effect=Exception("Timeout")):
+        html, error = fetch_html("https://example.com")
+        assert html is None
+        assert "Timeout" in error
+
+
+def test_fetch_html_403():
+    mock_response = Mock()
+    mock_response.status_code = 403
+    mock_response.raise_for_status = Mock(
+        side_effect=Exception("403 Client Error")
+    )
+
+    with patch("scraper.requests.get", return_value=mock_response):
+        html, error = fetch_html("https://example.com")
+        assert html is None
+        assert "403" in error

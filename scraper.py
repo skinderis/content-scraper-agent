@@ -25,3 +25,25 @@ def url_to_slug(url: str) -> str:
     # Truncate to 100 chars
     slug = slug[:100].rstrip("-")
     return slug.lower()
+
+import requests
+
+USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+HTTP_TIMEOUT = 15
+
+
+def fetch_html(url: str) -> tuple[str | None, str | None]:
+    """Fetch HTML from a URL. Returns (html, error)."""
+    try:
+        response = requests.get(
+            url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=HTTP_TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.text, None
+    except Exception as e:
+        return None, str(e)
