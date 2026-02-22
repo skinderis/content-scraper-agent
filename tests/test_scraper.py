@@ -165,3 +165,49 @@ def test_scrape_url_fetch_failure():
         result = scrape_url("https://example.com/article")
         assert result["success"] is False
         assert "timeout" in result["error"].lower()
+import os
+import tempfile
+from scraper import save_result, print_summary
+
+
+def test_save_result_creates_file():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result = {
+            "url": "https://example.com/test-article",
+            "text": "This is the article content that is long enough to be valid.",
+            "method": "trafilatura",
+            "success": True,
+            "error": None,
+        }
+        filepath = save_result(result, category="seo", output_dir=tmpdir)
+        assert os.path.exists(filepath)
+        assert filepath.endswith(".txt")
+        assert "/seo/" in filepath
+        with open(filepath) as f:
+            assert f.read() == result["text"]
+
+
+def test_save_result_skips_failed():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result = {
+            "url": "https://example.com/fail",
+            "text": None,
+            "method": None,
+            "success": False,
+            "error": "403 Forbidden",
+        }
+        filepath = save_result(result, category="seo", output_dir=tmpdir)
+        assert filepath is None
+
+
+def test_print_summary(capsys):
+    results = [
+        {"url": "https://a.com", "success": True, "method": "trafilatura", "error": None, "filepath": "output/seo/a-com.txt"},
+        {"url": "https://b.com", "success": False, "method": None, "error": "403 Forbidden", "filepath": None},
+    ]
+    print_summary(results)
+    captured = capsys.readouterr()
+    assert "SUCCESS" in captured.out
+    assert "FAILED" in captured.out
+    assert "trafilatura" in captured.out
+    assert "403" in captured.out

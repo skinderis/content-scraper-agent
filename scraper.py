@@ -163,3 +163,37 @@ def scrape_url(url: str) -> dict:
 
     result["error"] = "All extraction methods returned empty content"
     return result
+import os
+
+DEFAULT_OUTPUT_DIR = "output"
+
+
+def save_result(result: dict, category: str, output_dir: str = DEFAULT_OUTPUT_DIR) -> str | None:
+    """Save successful result to a .txt file. Returns filepath or None."""
+    if not result["success"]:
+        return None
+
+    category_dir = os.path.join(output_dir, category)
+    os.makedirs(category_dir, exist_ok=True)
+
+    slug = url_to_slug(result["url"])
+    filepath = os.path.join(category_dir, f"{slug}.txt")
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(result["text"])
+
+    return filepath
+
+
+def print_summary(results: list[dict]) -> None:
+    """Print a summary of scraping results."""
+    print("\n=== Scraping Summary ===")
+    for r in results:
+        if r["success"]:
+            print(f"SUCCESS: {r['url']}  -> {r.get('filepath', 'N/A')}  [{r['method']}]")
+        else:
+            print(f"FAILED:  {r['url']}  -> {r['error']}")
+
+    total = len(results)
+    succeeded = sum(1 for r in results if r["success"])
+    print(f"\nTotal: {total} | Success: {succeeded} | Failed: {total - succeeded}")
