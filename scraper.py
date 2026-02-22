@@ -127,3 +127,39 @@ def extract_with_beautifulsoup(html: str) -> str | None:
         return text if text and len(text.strip()) >= 10 else None
     except Exception:
         return None
+
+
+def scrape_url(url: str) -> dict:
+    """Scrape a single URL. Returns dict with url, text, method, success, error."""
+    result = {"url": url, "text": None, "method": None, "success": False, "error": None}
+
+    # Fetch HTML
+    html, error = fetch_html(url)
+    if html is None:
+        result["error"] = error
+        return result
+
+    # Check if JS rendering is needed
+    if needs_js_rendering(html):
+        js_html, js_error = fetch_html_with_playwright(url)
+        if js_html:
+            html = js_html
+
+    # Try extraction methods in order
+    text = extract_with_trafilatura(html)
+    if text:
+        result.update(text=text, method="trafilatura", success=True)
+        return result
+
+    text = extract_with_newspaper(html, url)
+    if text:
+        result.update(text=text, method="newspaper4k", success=True)
+        return result
+
+    text = extract_with_beautifulsoup(html)
+    if text:
+        result.update(text=text, method="beautifulsoup", success=True)
+        return result
+
+    result["error"] = "All extraction methods returned empty content"
+    return result

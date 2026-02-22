@@ -142,3 +142,26 @@ def test_extract_with_beautifulsoup_strips_tags():
     assert "var x = 1" not in result
     assert ".foo" not in result
     assert "Keep this paragraph" in result
+
+from scraper import scrape_url
+
+
+def test_scrape_url_returns_result_dict():
+    """Test that scrape_url returns expected structure with mocked fetch."""
+    sample_html = "<html><body><article><p>" + "Article content here. " * 20 + "</p></article></body></html>"
+
+    with patch("scraper.fetch_html", return_value=(sample_html, None)):
+        result = scrape_url("https://example.com/article")
+        assert "url" in result
+        assert "text" in result
+        assert "method" in result
+        assert "success" in result
+        assert result["success"] is True
+        assert result["method"] in ("trafilatura", "newspaper4k", "beautifulsoup")
+
+
+def test_scrape_url_fetch_failure():
+    with patch("scraper.fetch_html", return_value=(None, "Connection timeout")):
+        result = scrape_url("https://example.com/article")
+        assert result["success"] is False
+        assert "timeout" in result["error"].lower()
