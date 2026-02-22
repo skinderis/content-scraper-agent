@@ -68,3 +68,25 @@ def test_fetch_html_403():
         html, error = fetch_html("https://example.com")
         assert html is None
         assert "403" in error
+
+from scraper import needs_js_rendering, fetch_html_with_playwright
+
+
+def test_needs_js_rendering_empty_body():
+    html = "<html><body><div id='root'></div></body></html>"
+    assert needs_js_rendering(html) is True
+
+
+def test_needs_js_rendering_spa_marker():
+    html = '<html><body><div id="app"></div></body></html>'
+    assert needs_js_rendering(html) is True
+
+
+def test_needs_js_rendering_normal_page():
+    html = "<html><body><p>" + "Some article content. " * 50 + "</p></body></html>"
+    assert needs_js_rendering(html) is False
+
+
+def test_needs_js_rendering_short_text():
+    html = "<html><body><p>Loading...</p></body></html>"
+    assert needs_js_rendering(html) is True

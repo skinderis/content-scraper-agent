@@ -47,3 +47,44 @@ def fetch_html(url: str) -> tuple[str | None, str | None]:
         return response.text, None
     except Exception as e:
         return None, str(e)
+
+from bs4 import BeautifulSoup
+
+SPA_MARKERS = ['id="root"', 'id="app"', 'id="__next"', 'id="__nuxt"']
+MIN_TEXT_LENGTH = 200
+PLAYWRIGHT_TIMEOUT = 30000  # ms
+
+
+def needs_js_rendering(html: str) -> bool:
+    """Detect if a page likely needs JavaScript rendering."""
+    # Check for SPA markers
+    for marker in SPA_MARKERS:
+        if marker in html:
+            soup = BeautifulSoup(html, "lxml")
+            text = soup.get_text(strip=True)
+            if len(text) < MIN_TEXT_LENGTH:
+                return True
+
+    # Check if visible text is too short
+    soup = BeautifulSoup(html, "lxml")
+    # Remove script and style elements
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+    text = soup.get_text(strip=True)
+    return len(text) < MIN_TEXT_LENGTH
+
+
+def fetch_html_with_playwright(url: str) -> tuple[str | None, str | None]:
+    """Fetch HTML using Playwright for JS-rendered pages. Returns (html, error)."""
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page(user_agent=USER_AGENT)
+            page.goto(url, timeout=PLAYWRIGHT_TIMEOUT, wait_until="networkidle")
+            html = page.content()
+            browser.close()
+            return html, None
+    except Exception as e:
+        return None, f"Playwright error: {e}"
