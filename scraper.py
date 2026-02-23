@@ -189,8 +189,34 @@ def extract_with_beautifulsoup(html: str) -> str | None:
         return None
 
 
+def scrape_tweet(url: str) -> dict:
+    """Scrape a tweet URL. Returns dict with url, text, method, success, error."""
+    result = {"url": url, "text": None, "method": None, "success": False, "error": None}
+
+    username, tweet_id = parse_tweet_url(url)
+
+    # Try FxTwitter first
+    text, error = fetch_tweet_fxtwitter(username, tweet_id)
+    if text:
+        result.update(text=text, method="fxtwitter", success=True)
+        return result
+
+    # Fall back to oEmbed
+    text, oembed_error = fetch_tweet_oembed(url)
+    if text:
+        result.update(text=text, method="oembed", success=True)
+        return result
+
+    result["error"] = f"FxTwitter: {error}; oEmbed: {oembed_error}"
+    return result
+
+
 def scrape_url(url: str) -> dict:
     """Scrape a single URL. Returns dict with url, text, method, success, error."""
+    # Route tweet URLs to dedicated handler
+    if is_twitter_url(url):
+        return scrape_tweet(url)
+
     result = {"url": url, "text": None, "method": None, "success": False, "error": None}
 
     # Fetch HTML

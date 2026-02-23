@@ -257,7 +257,50 @@ def test_extract_with_beautifulsoup_strips_tags():
     assert ".foo" not in result
     assert "Keep this paragraph" in result
 
-from scraper import scrape_url
+from scraper import scrape_url, scrape_tweet
+
+
+def test_scrape_tweet_uses_fxtwitter():
+    """scrape_tweet tries FxTwitter first."""
+    with patch("scraper.fetch_tweet_fxtwitter", return_value=("Tweet text here", None)):
+        result = scrape_tweet("https://x.com/user/status/123")
+        assert result["success"] is True
+        assert result["text"] == "Tweet text here"
+        assert result["method"] == "fxtwitter"
+
+
+def test_scrape_tweet_falls_back_to_oembed():
+    """scrape_tweet falls back to oEmbed when FxTwitter fails."""
+    with patch("scraper.fetch_tweet_fxtwitter", return_value=(None, "404 Not Found")):
+        with patch("scraper.fetch_tweet_oembed", return_value=("Fallback text", None)):
+            result = scrape_tweet("https://x.com/user/status/123")
+            assert result["success"] is True
+            assert result["text"] == "Fallback text"
+            assert result["method"] == "oembed"
+
+
+def test_scrape_tweet_both_fail():
+    """scrape_tweet reports failure when both methods fail."""
+    with patch("scraper.fetch_tweet_fxtwitter", return_value=(None, "FX error")):
+        with patch("scraper.fetch_tweet_oembed", return_value=(None, "oEmbed error")):
+            result = scrape_tweet("https://x.com/user/status/123")
+            assert result["success"] is False
+            assert result["error"] is not None
+
+
+def test_scrape_url_routes_twitter():
+    """scrape_url detects twitter URLs and routes to scrape_tweet."""
+    with patch("scraper.scrape_tweet", return_value={
+        "url": "https://x.com/user/status/123",
+        "text": "Tweet!",
+        "method": "fxtwitter",
+        "success": True,
+        "error": None,
+    }) as mock_tweet:
+        result = scrape_url("https://x.com/user/status/123")
+        mock_tweet.assert_called_once()
+        assert result["success"] is True
+        assert result["method"] == "fxtwitter"
 
 
 def test_scrape_url_returns_result_dict():
