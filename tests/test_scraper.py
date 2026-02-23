@@ -68,7 +68,87 @@ def test_parse_tweet_url_with_query_params():
 
 
 from unittest.mock import patch, Mock
-from scraper import fetch_html
+from scraper import fetch_html, fetch_tweet_fxtwitter, fetch_tweet_oembed
+
+FXTWITTER_RESPONSE = {
+    "code": 200,
+    "message": "OK",
+    "tweet": {
+        "text": "This is the tweet text content.",
+        "author": {"name": "Test User", "screen_name": "testuser"},
+        "likes": 100,
+        "retweets": 50,
+    },
+}
+
+
+def test_fetch_tweet_fxtwitter_success():
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = FXTWITTER_RESPONSE
+
+    with patch("scraper.requests.get", return_value=mock_response):
+        text, error = fetch_tweet_fxtwitter("testuser", "123456")
+        assert text == "This is the tweet text content."
+        assert error is None
+
+
+def test_fetch_tweet_fxtwitter_not_found():
+    mock_response = Mock()
+    mock_response.status_code = 404
+    mock_response.raise_for_status = Mock(side_effect=Exception("404 Not Found"))
+
+    with patch("scraper.requests.get", return_value=mock_response):
+        text, error = fetch_tweet_fxtwitter("nobody", "999")
+        assert text is None
+        assert error is not None
+
+
+def test_fetch_tweet_fxtwitter_network_error():
+    with patch("scraper.requests.get", side_effect=Exception("Connection refused")):
+        text, error = fetch_tweet_fxtwitter("user", "123")
+        assert text is None
+        assert "Connection refused" in error
+
+
+OEMBED_RESPONSE = {
+    "html": '<blockquote class="twitter-tweet"><p lang="en" dir="ltr">This is the tweet from oembed.</p>&mdash; Test User (@testuser)</blockquote>',
+    "author_name": "Test User",
+    "author_url": "https://twitter.com/testuser",
+}
+
+
+def test_fetch_tweet_oembed_success():
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = OEMBED_RESPONSE
+
+    with patch("scraper.requests.get", return_value=mock_response):
+        text, error = fetch_tweet_oembed("https://x.com/testuser/status/123")
+        assert text is not None
+        assert "tweet from oembed" in text
+        assert error is None
+
+
+def test_fetch_tweet_oembed_strips_html():
+    oembed_html = {
+        "html": '<blockquote><p lang="en" dir="ltr">Clean text here. <a href="https://t.co/abc">link</a></p>&mdash; User (@u)</blockquote>',
+    }
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = oembed_html
+
+    with patch("scraper.requests.get", return_value=mock_response):
+        text, error = fetch_tweet_oembed("https://x.com/u/status/1")
+        assert "<p>" not in text
+        assert "<a" not in text
+
+
+def test_fetch_tweet_oembed_failure():
+    with patch("scraper.requests.get", side_effect=Exception("Timeout")):
+        text, error = fetch_tweet_oembed("https://x.com/u/status/1")
+        assert text is None
+        assert error is not None
 
 def test_fetch_html_success():
     mock_response = Mock()

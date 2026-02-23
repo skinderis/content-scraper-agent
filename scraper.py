@@ -3,6 +3,8 @@
 import re
 from urllib.parse import urlparse
 
+from bs4 import BeautifulSoup
+
 
 def validate_url(url: str) -> bool:
     """Check if a URL has a valid HTTP/HTTPS scheme and netloc."""
@@ -44,11 +46,55 @@ def parse_tweet_url(url: str) -> tuple[str, str]:
 
 import requests
 
+FXTWITTER_API = "https://api.fxtwitter.com"
+OEMBED_API = "https://publish.twitter.com/oembed"
+
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 HTTP_TIMEOUT = 15
+
+
+def fetch_tweet_fxtwitter(username: str, tweet_id: str) -> tuple[str | None, str | None]:
+    """Fetch tweet text via FxTwitter API. Returns (text, error)."""
+    try:
+        url = f"{FXTWITTER_API}/{username}/status/{tweet_id}"
+        response = requests.get(
+            url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=HTTP_TIMEOUT,
+        )
+        response.raise_for_status()
+        data = response.json()
+        text = data.get("tweet", {}).get("text")
+        if text and len(text.strip()) > 0:
+            return text.strip(), None
+        return None, "FxTwitter returned empty tweet text"
+    except Exception as e:
+        return None, str(e)
+
+
+def fetch_tweet_oembed(tweet_url: str) -> tuple[str | None, str | None]:
+    """Fetch tweet text via Twitter oEmbed API. Returns (text, error)."""
+    try:
+        response = requests.get(
+            OEMBED_API,
+            params={"url": tweet_url},
+            headers={"User-Agent": USER_AGENT},
+            timeout=HTTP_TIMEOUT,
+        )
+        response.raise_for_status()
+        data = response.json()
+        html = data.get("html", "")
+        soup = BeautifulSoup(html, "lxml")
+        paragraphs = soup.find_all("p")
+        text = "\n".join(p.get_text() for p in paragraphs)
+        if text and len(text.strip()) > 0:
+            return text.strip(), None
+        return None, "oEmbed returned empty tweet text"
+    except Exception as e:
+        return None, str(e)
 
 
 def fetch_html(url: str) -> tuple[str | None, str | None]:
@@ -63,8 +109,6 @@ def fetch_html(url: str) -> tuple[str | None, str | None]:
         return response.text, None
     except Exception as e:
         return None, str(e)
-
-from bs4 import BeautifulSoup
 
 SPA_MARKERS = ['id="root"', 'id="app"', 'id="__next"', 'id="__nuxt"']
 MIN_TEXT_LENGTH = 200
