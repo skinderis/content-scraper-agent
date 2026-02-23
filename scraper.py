@@ -67,7 +67,26 @@ def fetch_tweet_fxtwitter(username: str, tweet_id: str) -> tuple[str | None, str
         )
         response.raise_for_status()
         data = response.json()
-        text = data.get("tweet", {}).get("text")
+        tweet = data.get("tweet", {})
+
+        # Check for X Article (long-form content)
+        article = tweet.get("article")
+        if article:
+            blocks = article.get("content", {}).get("blocks", [])
+            title = article.get("title", "")
+            parts = []
+            if title:
+                parts.append(title)
+            for block in blocks:
+                block_text = block.get("text", "")
+                if block_text:
+                    parts.append(block_text)
+            text = "\n\n".join(parts)
+            if text and len(text.strip()) > 0:
+                return text.strip(), None
+
+        # Regular tweet text
+        text = tweet.get("text")
         if text and len(text.strip()) > 0:
             return text.strip(), None
         return None, "FxTwitter returned empty tweet text"

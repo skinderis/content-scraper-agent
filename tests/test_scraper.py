@@ -93,6 +93,39 @@ def test_fetch_tweet_fxtwitter_success():
         assert error is None
 
 
+FXTWITTER_ARTICLE_RESPONSE = {
+    "code": 200,
+    "message": "OK",
+    "tweet": {
+        "text": "",
+        "article": {
+            "title": "how to master AI in 30 days",
+            "content": {
+                "blocks": [
+                    {"text": "a year from now, two versions of you exist...", "type": "unstyled"},
+                    {"text": "one is applying to jobs", "type": "unstyled"},
+                    {"text": "the other is billing $200/hour", "type": "unstyled"},
+                ],
+            },
+        },
+    },
+}
+
+
+def test_fetch_tweet_fxtwitter_article():
+    """FxTwitter extracts X Article content from tweet.article field."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = FXTWITTER_ARTICLE_RESPONSE
+
+    with patch("scraper.requests.get", return_value=mock_response):
+        text, error = fetch_tweet_fxtwitter("user", "123")
+        assert error is None
+        assert "how to master AI in 30 days" in text
+        assert "a year from now" in text
+        assert "billing $200/hour" in text
+
+
 def test_fetch_tweet_fxtwitter_not_found():
     mock_response = Mock()
     mock_response.status_code = 404
