@@ -26,6 +26,22 @@ def url_to_slug(url: str) -> str:
     slug = slug[:100].rstrip("-")
     return slug.lower()
 
+def is_twitter_url(url: str) -> bool:
+    """Check if a URL is an X/Twitter tweet URL."""
+    parsed = urlparse(url)
+    if parsed.netloc not in ("x.com", "twitter.com", "www.x.com", "www.twitter.com"):
+        return False
+    parts = parsed.path.strip("/").split("/")
+    return len(parts) >= 3 and parts[1] == "status"
+
+
+def parse_tweet_url(url: str) -> tuple[str, str]:
+    """Extract (username, tweet_id) from a tweet URL."""
+    parsed = urlparse(url)
+    parts = parsed.path.strip("/").split("/")
+    return parts[0], parts[2]
+
+
 import requests
 
 USER_AGENT = (

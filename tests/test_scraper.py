@@ -1,4 +1,4 @@
-from scraper import validate_url, url_to_slug
+from scraper import validate_url, url_to_slug, is_twitter_url, parse_tweet_url
 
 
 def test_validate_url_valid():
@@ -32,6 +32,40 @@ def test_url_to_slug_truncates_long_urls():
 def test_url_to_slug_no_trailing_hyphens():
     slug = url_to_slug("https://example.com/path/")
     assert not slug.endswith("-")
+
+def test_is_twitter_url_x_com():
+    assert is_twitter_url("https://x.com/EXM7777/status/2016160442603995321") is True
+
+
+def test_is_twitter_url_twitter_com():
+    assert is_twitter_url("https://twitter.com/user/status/123456") is True
+
+
+def test_is_twitter_url_not_tweet():
+    assert is_twitter_url("https://x.com/user") is False
+
+
+def test_is_twitter_url_regular_url():
+    assert is_twitter_url("https://example.com/article") is False
+
+
+def test_parse_tweet_url_x_com():
+    user, tweet_id = parse_tweet_url("https://x.com/EXM7777/status/2016160442603995321")
+    assert user == "EXM7777"
+    assert tweet_id == "2016160442603995321"
+
+
+def test_parse_tweet_url_twitter_com():
+    user, tweet_id = parse_tweet_url("https://twitter.com/jack/status/20")
+    assert user == "jack"
+    assert tweet_id == "20"
+
+
+def test_parse_tweet_url_with_query_params():
+    user, tweet_id = parse_tweet_url("https://x.com/user/status/123?s=20&t=abc")
+    assert user == "user"
+    assert tweet_id == "123"
+
 
 from unittest.mock import patch, Mock
 from scraper import fetch_html
