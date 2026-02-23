@@ -1,4 +1,4 @@
-from scraper import validate_url, url_to_slug
+from scraper import validate_url, url_to_slug, is_twitter_url, parse_tweet_url
 
 
 def test_validate_url_valid():
@@ -33,8 +33,155 @@ def test_url_to_slug_no_trailing_hyphens():
     slug = url_to_slug("https://example.com/path/")
     assert not slug.endswith("-")
 
+def test_is_twitter_url_x_com():
+    assert is_twitter_url("https://x.com/EXM7777/status/2016160442603995321") is True
+
+
+def test_is_twitter_url_twitter_com():
+    assert is_twitter_url("https://twitter.com/user/status/123456") is True
+
+
+def test_is_twitter_url_not_tweet():
+    assert is_twitter_url("https://x.com/user") is False
+
+
+def test_is_twitter_url_regular_url():
+    assert is_twitter_url("https://example.com/article") is False
+
+
+def test_parse_tweet_url_x_com():
+    user, tweet_id = parse_tweet_url("https://x.com/EXM7777/status/2016160442603995321")
+    assert user == "EXM7777"
+    assert tweet_id == "2016160442603995321"
+
+
+def test_parse_tweet_url_twitter_com():
+    user, tweet_id = parse_tweet_url("https://twitter.com/jack/status/20")
+    assert user == "jack"
+    assert tweet_id == "20"
+
+
+def test_parse_tweet_url_with_query_params():
+    user, tweet_id = parse_tweet_url("https://x.com/user/status/123?s=20&t=abc")
+    assert user == "user"
+    assert tweet_id == "123"
+
+
 from unittest.mock import patch, Mock
-from scraper import fetch_html
+from scraper import fetch_html, fetch_tweet_fxtwitter, fetch_tweet_oembed
+
+FXTWITTER_RESPONSE = {
+    "code": 200,
+    "message": "OK",
+    "tweet": {
+        "text": "This is the tweet text content.",
+        "author": {"name": "Test User", "screen_name": "testuser"},
+        "likes": 100,
+        "retweets": 50,
+    },
+}
+
+
+def test_fetch_tweet_fxtwitter_success():
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = FXTWITTER_RESPONSE
+
+    with patch("scraper.requests.get", return_value=mock_response):
+        text, error = fetch_tweet_fxtwitter("testuser", "123456")
+        assert text == "This is the tweet text content."
+        assert error is None
+
+
+FXTWITTER_ARTICLE_RESPONSE = {
+    "code": 200,
+    "message": "OK",
+    "tweet": {
+        "text": "",
+        "article": {
+            "title": "how to master AI in 30 days",
+            "content": {
+                "blocks": [
+                    {"text": "a year from now, two versions of you exist...", "type": "unstyled"},
+                    {"text": "one is applying to jobs", "type": "unstyled"},
+                    {"text": "the other is billing $200/hour", "type": "unstyled"},
+                ],
+            },
+        },
+    },
+}
+
+
+def test_fetch_tweet_fxtwitter_article():
+    """FxTwitter extracts X Article content from tweet.article field."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = FXTWITTER_ARTICLE_RESPONSE
+
+    with patch("scraper.requests.get", return_value=mock_response):
+        text, error = fetch_tweet_fxtwitter("user", "123")
+        assert error is None
+        assert "how to master AI in 30 days" in text
+        assert "a year from now" in text
+        assert "billing $200/hour" in text
+
+
+def test_fetch_tweet_fxtwitter_not_found():
+    mock_response = Mock()
+    mock_response.status_code = 404
+    mock_response.raise_for_status = Mock(side_effect=Exception("404 Not Found"))
+
+    with patch("scraper.requests.get", return_value=mock_response):
+        text, error = fetch_tweet_fxtwitter("nobody", "999")
+        assert text is None
+        assert error is not None
+
+
+def test_fetch_tweet_fxtwitter_network_error():
+    with patch("scraper.requests.get", side_effect=Exception("Connection refused")):
+        text, error = fetch_tweet_fxtwitter("user", "123")
+        assert text is None
+        assert "Connection refused" in error
+
+
+OEMBED_RESPONSE = {
+    "html": '<blockquote class="twitter-tweet"><p lang="en" dir="ltr">This is the tweet from oembed.</p>&mdash; Test User (@testuser)</blockquote>',
+    "author_name": "Test User",
+    "author_url": "https://twitter.com/testuser",
+}
+
+
+def test_fetch_tweet_oembed_success():
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = OEMBED_RESPONSE
+
+    with patch("scraper.requests.get", return_value=mock_response):
+        text, error = fetch_tweet_oembed("https://x.com/testuser/status/123")
+        assert text is not None
+        assert "tweet from oembed" in text
+        assert error is None
+
+
+def test_fetch_tweet_oembed_strips_html():
+    oembed_html = {
+        "html": '<blockquote><p lang="en" dir="ltr">Clean text here. <a href="https://t.co/abc">link</a></p>&mdash; User (@u)</blockquote>',
+    }
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = oembed_html
+
+    with patch("scraper.requests.get", return_value=mock_response):
+        text, error = fetch_tweet_oembed("https://x.com/u/status/1")
+        assert "<p>" not in text
+        assert "<a" not in text
+
+
+def test_fetch_tweet_oembed_failure():
+    with patch("scraper.requests.get", side_effect=Exception("Timeout")):
+        text, error = fetch_tweet_oembed("https://x.com/u/status/1")
+        assert text is None
+        assert error is not None
 
 def test_fetch_html_success():
     mock_response = Mock()
@@ -143,7 +290,50 @@ def test_extract_with_beautifulsoup_strips_tags():
     assert ".foo" not in result
     assert "Keep this paragraph" in result
 
-from scraper import scrape_url
+from scraper import scrape_url, scrape_tweet
+
+
+def test_scrape_tweet_uses_fxtwitter():
+    """scrape_tweet tries FxTwitter first."""
+    with patch("scraper.fetch_tweet_fxtwitter", return_value=("Tweet text here", None)):
+        result = scrape_tweet("https://x.com/user/status/123")
+        assert result["success"] is True
+        assert result["text"] == "Tweet text here"
+        assert result["method"] == "fxtwitter"
+
+
+def test_scrape_tweet_falls_back_to_oembed():
+    """scrape_tweet falls back to oEmbed when FxTwitter fails."""
+    with patch("scraper.fetch_tweet_fxtwitter", return_value=(None, "404 Not Found")):
+        with patch("scraper.fetch_tweet_oembed", return_value=("Fallback text", None)):
+            result = scrape_tweet("https://x.com/user/status/123")
+            assert result["success"] is True
+            assert result["text"] == "Fallback text"
+            assert result["method"] == "oembed"
+
+
+def test_scrape_tweet_both_fail():
+    """scrape_tweet reports failure when both methods fail."""
+    with patch("scraper.fetch_tweet_fxtwitter", return_value=(None, "FX error")):
+        with patch("scraper.fetch_tweet_oembed", return_value=(None, "oEmbed error")):
+            result = scrape_tweet("https://x.com/user/status/123")
+            assert result["success"] is False
+            assert result["error"] is not None
+
+
+def test_scrape_url_routes_twitter():
+    """scrape_url detects twitter URLs and routes to scrape_tweet."""
+    with patch("scraper.scrape_tweet", return_value={
+        "url": "https://x.com/user/status/123",
+        "text": "Tweet!",
+        "method": "fxtwitter",
+        "success": True,
+        "error": None,
+    }) as mock_tweet:
+        result = scrape_url("https://x.com/user/status/123")
+        mock_tweet.assert_called_once()
+        assert result["success"] is True
+        assert result["method"] == "fxtwitter"
 
 
 def test_scrape_url_returns_result_dict():
